@@ -11,11 +11,13 @@ int font[FONT_COUNT] = {31599,19812,14479,31207,23524,29411,29679,30866,31727,31
 #define DIGITS_COUNT 8
 #define DIGITS_PAD 2
 #define DISPLAY_WIDTH (FONT_COLS + DIGITS_PAD)*DIGITS_COUNT
+//need to update input_f as well when changing display height
 #define DISPLAY_HEIGHT FONT_ROWS
 
-sem_t sem1, sem2;
+sem_t s_btn, q_btn;
 
-void*timer();
+void*timer_f();
+void*clock_f();
 void*input_f();
 void up_time(struct tm* time);
 void sec_to_timer(struct tm *ris, time_t t_start);
@@ -24,10 +26,10 @@ void time_printer(struct tm *time);
 
 int main(int argc, char**argv){
   pthread_t main_thread, input_thread;
-  sem_init(&sem1, 0, 1);
-  sem_init(&sem2, 0, 1);
+  sem_init(&s_btn, 0, 1);
+  sem_init(&q_btn, 0, 1);
   pthread_create(&input_thread, NULL, input_f, NULL);
-  pthread_create(&main_thread, NULL, timer, NULL);
+  pthread_create(&main_thread, NULL, timer_f, NULL);
   pthread_join(main_thread, NULL);
   pthread_join(input_thread, NULL);
   return 0;
@@ -35,23 +37,42 @@ int main(int argc, char**argv){
 
 //@ funzioni core
 
-void *timer(){
-  int sem1_value, sem2_value;
-  //time_t t = time(NULL);
-  //struct tm *time = localtime(&t);
-  struct tm time; 
-  sem_getvalue(&sem1, &sem1_value);
-  sem_getvalue(&sem2, &sem2_value);
- 
-  while(sem2_value) {
-    if (sem1_value){
-      //sec_to_timer(time, t);
-      time_printer(&time);
-      up_time(&time);
+void *timer_f(){
+  int s_btn_value, q_btn_value;
+  time_t start_time = time(NULL);
+  time_t curr_time;
+  time_t displayed;
+  struct tm t; 
+  sem_getvalue(&s_btn, &s_btn_value);
+  sem_getvalue(&q_btn, &q_btn_value);
+
+  while(q_btn_value) {
+    if (s_btn_value){
+      curr_time = time(NULL);
+      displayed = curr_time - start_time;
+      sec_to_timer(&t, displayed);
+      time_printer(&t);
       sleep(1);
+    } else {
+      start_time = time(NULL) - displayed;
     }
-    sem_getvalue(&sem1, &sem1_value);
-    sem_getvalue(&sem2, &sem2_value);
+    sem_getvalue(&s_btn, &s_btn_value);
+    sem_getvalue(&q_btn, &q_btn_value);
+  }
+  return NULL;
+}
+
+void *clock_f(){
+  int q_btn_value;
+  time_t curr_time;
+  struct tm *curr_hour;
+  sem_getvalue(&q_btn, &q_btn_value);
+  while (q_btn_value){
+    curr_time = time(NULL);
+    curr_hour = localtime(&curr_time);
+    time_printer(curr_hour);
+    sleep(1);
+    sem_getvalue(&q_btn, &q_btn_value);
   }
   return NULL;
 }
@@ -59,20 +80,24 @@ void *timer(){
 //@ funzione input
 
 void *input_f(){
-  int sem_value = 1;
+  int s_value = 1;
   char command[2];
   while(1){
-    scanf("%s", command);
-    if (command[0] == 'q'){
-      sem_wait(&sem2);
-      return NULL;
-    }
-    if (sem_value) {
-      sem_value = 0;
-      sem_wait(&sem1);
-    } else{
-      sem_value = 1;
-      sem_post(&sem1);
+    fgets(command, sizeof(command), stdin);
+    //6H needs to change when changinng display_height
+    printf("\33[6H\33[2K");
+    switch (command[0]){
+      case 'q':
+          sem_wait(&q_btn);
+          return NULL;
+      case 's':
+        if (s_value) {
+          s_value = 0;
+          sem_wait(&s_btn);
+        } else{
+          s_value = 1;
+          sem_post(&s_btn);
+        }
     }
   }
   return NULL;
@@ -91,9 +116,7 @@ void up_time(struct tm *time){
   time->tm_sec = new_sec % 60;
 }
 
-void sec_to_timer(struct tm *ris, time_t t_start){
-	time_t t_now = time(NULL);
-	int time = (int)difftime(t_now, t_start);
+void sec_to_timer(struct tm *ris, time_t time){
 	ris->tm_sec = time%60;
 	time = time/60;
 	ris->tm_min = time%60;
@@ -110,15 +133,15 @@ void time_printer(struct tm *time){
   digits[5] = 10;
   digits[6] = time->tm_sec/10;
   digits[7] = time->tm_sec%10;
-  printf("\033[H\033[J");
+  printf("\33[H\33[J");
   for (int y = 0; y < DISPLAY_HEIGHT; ++y) {
     for (int x = 0; x < DISPLAY_WIDTH; ++x) {
       int i = x/(FONT_COLS + DIGITS_PAD);
       int dx = x%(FONT_COLS + DIGITS_PAD);
       if (dx < FONT_COLS && (font[digits[i]]>>((FONT_ROWS - y - 1)*FONT_COLS + dx))&1) {
-        printf("\033[1;31m█\033[0m");
+        printf("\33[1;31m█\33[0m");
       } else {
-        printf("█");
+        printf("\33[1;36m█\33[0m");
       }
     }
     printf("\n");
