@@ -16,6 +16,7 @@ int font[FONT_COUNT] = {31599,19812,14479,31207,23524,29411,29679,30866,31727,31
 
 sem_t s_btn, q_btn;
 
+void help(char* prog_name);
 void*timer_f();
 void*clock_f();
 void*input_f();
@@ -28,11 +29,40 @@ int main(int argc, char**argv){
   pthread_t main_thread, input_thread;
   sem_init(&s_btn, 0, 1);
   sem_init(&q_btn, 0, 1);
-  pthread_create(&input_thread, NULL, input_f, NULL);
-  pthread_create(&main_thread, NULL, timer_f, NULL);
-  pthread_join(main_thread, NULL);
-  pthread_join(input_thread, NULL);
+  if (argc == 2){
+    if (argv[1][0] != '-' || argv[1][1] == 'h'){
+      help(argv[0]);
+    }else {
+      if (argv[1][1] == 's'){
+        pthread_create(&input_thread, NULL, input_f, NULL);
+        pthread_create(&main_thread, NULL, timer_f, NULL);
+        pthread_join(main_thread, NULL);
+        pthread_join(input_thread, NULL);
+      }else if (argv[1][1] == 'c'){
+        pthread_create(&input_thread, NULL, input_f, NULL);
+        pthread_create(&main_thread, NULL, clock_f, NULL);
+        pthread_join(main_thread, NULL);
+        pthread_join(input_thread, NULL);
+      }
+    }
+  } else{
+    pthread_create(&input_thread, NULL, input_f, NULL);
+    pthread_create(&main_thread, NULL, timer_f, NULL);
+    pthread_join(main_thread, NULL);
+    pthread_join(input_thread, NULL);
+  }
   return 0;
+}
+
+//@ help
+
+void help(char *prog_name){
+  printf("usage: %s\n", prog_name);
+  printf("\t[-p | -stopwatch] stopwatch function\n");
+  printf("\t[-c | -clock] clock function\n");
+  printf("\t[-t | -timer] timer function //WIP\n");
+  printf("\tenter s to pause, q to quit\n");
+  return;
 }
 
 //@ funzioni core
