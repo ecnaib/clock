@@ -32,7 +32,6 @@ int main(int argc, char**argv){
   pthread_create(&main_thread, NULL, timer_f, NULL);
   pthread_join(main_thread, NULL);
   pthread_join(input_thread, NULL);
-  printf("a");
   return 0;
 }
 
